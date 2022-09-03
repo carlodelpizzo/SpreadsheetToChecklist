@@ -1,6 +1,6 @@
 import tkinter as tk
 import openpyxl
-from barcode import Code128
+from barcode import Code128  # package called 'python-barcode'
 from barcode.writer import SVGWriter
 from barcode.writer import ImageWriter
 from tkinter import *
