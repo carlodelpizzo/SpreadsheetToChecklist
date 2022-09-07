@@ -7,6 +7,8 @@ from openpyxl.drawing.image import Image
 from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor, AnchorMarker
 from openpyxl.utils.units import pixels_to_EMU, cm_to_EMU
 from openpyxl.drawing.xdr import XDRPositiveSize2D
+from openpyxl.styles import Font
+from openpyxl.styles.borders import Border, Side
 from barcode import Code128  # Package called python-barcode
 from barcode.writer import ImageWriter  # Requires Pillow
 from tkinter import *
@@ -148,9 +150,13 @@ class ChecklistProgram:
         workbook = openpyxl.Workbook()
         sheet = workbook.worksheets[0]
         sheet.freeze_panes = sheet['A2']
-        sheet.merge_cells('A1:B1')
+        sheet.merge_cells('A1:C1')
         sheet['A1'].value = 'Batch: ' + str(self.batch)
+        sheet['A1'].font = Font(bold=True)
         sheet.cell(row=1, column=1).alignment = openpyxl.styles.Alignment(horizontal='center')
+        sheet['D1'].value = 'Notes'
+        sheet['D1'].font = Font(bold=True)
+        sheet.cell(row=1, column=4).alignment = openpyxl.styles.Alignment(horizontal='center')
         i = 2
         temp_dir = self.cur_dir + 'barcode_temp/'
         if os.path.isdir(temp_dir):
@@ -172,8 +178,10 @@ class ChecklistProgram:
                 part_name = part_name[0:-2]
             else:
                 part_name += ']'
-            sheet.cell(row=i, column=2).alignment = openpyxl.styles.Alignment(vertical='top')
-            sheet.cell(row=i, column=2).value = part_name
+            sheet.cell(row=i, column=3).alignment = openpyxl.styles.Alignment(vertical='top')
+            sheet.cell(row=i, column=3).value = part_name
+            sheet.cell(row=i, column=1).alignment = openpyxl.styles.Alignment(horizontal='right', vertical='center')
+            sheet.cell(row=i, column=1).value = '☐'
             with open(temp_dir + part + '.png', "wb") as file:
                 Code128(part, writer=ImageWriter()).write(file, options={'write_text': False})
             img = openpyxl.drawing.image.Image(temp_dir + part + '.png')
@@ -183,22 +191,27 @@ class ChecklistProgram:
             img.width = width
             # Silly nonsense below
             row_offset = 0.25
-            marker = AnchorMarker(col=0, row=i-1, rowOff=cm_to_EMU((row_offset * 49.77) / 99),
+            marker = AnchorMarker(col=1, row=i-1, rowOff=cm_to_EMU((row_offset * 49.77) / 99),
                                   colOff=cm_to_EMU((0.1 * 49.77) / 99))
             size = XDRPositiveSize2D(pixels_to_EMU(width), pixels_to_EMU(height))
             img.anchor = OneCellAnchor(_from=marker, ext=size)
             sheet.add_image(img)
             i += 1
         dims = {}
+        border = Border(left=Side(style='thin'), right=Side(style='thin'),
+                             top=Side(style='thin'), bottom=Side(style='thin'))
         for row in sheet.rows:
             for cell in row:
                 if cell.value:
                     dims[cell.column_letter] = max((dims.get(cell.column_letter, 0), len(str(cell.value))))
         for col, value in dims.items():
             sheet.column_dimensions[col].width = value + 2
-        for row in range(1, sheet.max_row + 1):
+        for row in range(2, sheet.max_row + 1):
             sheet.row_dimensions[row].height = 20
-        sheet.column_dimensions['A'].width = 30
+            sheet.cell(row=row, column=4).border = border
+        sheet.column_dimensions['A'].width = 5
+        sheet.column_dimensions['B'].width = 30
+        sheet.column_dimensions['D'].width = 20
         workbook.save('test.xlsx')
         if os.path.isdir(temp_dir):
             shutil.rmtree(temp_dir)
