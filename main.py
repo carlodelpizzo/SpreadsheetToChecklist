@@ -199,7 +199,7 @@ class ChecklistProgram:
             i += 1
         dims = {}
         border = Border(left=Side(style='thin'), right=Side(style='thin'),
-                             top=Side(style='thin'), bottom=Side(style='thin'))
+                        top=Side(style='thin'), bottom=Side(style='thin'))
         for row in sheet.rows:
             for cell in row:
                 if cell.value:
