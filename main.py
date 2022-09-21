@@ -72,6 +72,7 @@ class ChecklistProgram:
             None, None, None, None, None, None, None, None, None
         read_col_labels = False
         labels_row = None
+        no_break_parts = []
         for r in range(1, sheet.max_row + 1):
             current_part = None
             for c in range(1, sheet.max_column + 1):
@@ -81,21 +82,21 @@ class ChecklistProgram:
                         read_col_labels = False
                     elif (cell_val := cell_obj.value) == 'Part':
                         part_col = c
-                    elif cell_val == 'Type':
+                    elif not type_col and cell_val == 'Type':
                         type_col = c
-                    elif cell_val == 'Material':
+                    elif not material_col and cell_val == 'Material':
                         material_col = c
-                    elif cell_val == 'Break':
+                    elif not break_col and cell_val == 'Break':
                         break_col = c
-                    elif cell_val == 'Weld':
+                    elif not weld_col and cell_val == 'Weld':
                         weld_col = c
-                    elif cell_val == 'PowdCoat Y/N':
+                    elif not powder_col and cell_val == 'PowdCoat Y/N':
                         powder_col = c
-                    elif cell_val == 'Quantity':
+                    elif not quantity_col and cell_val == 'Quantity':
                         quantity_col = c
-                    elif cell_val == 'Batch':
+                    elif not batch_col and cell_val == 'Batch':
                         batch_col = c
-                    elif cell_val == 'Setup':
+                    elif not setup_col and cell_val == 'Setup':
                         setup_col = c
                     if read_col_labels:
                         continue
@@ -135,36 +136,42 @@ class ChecklistProgram:
                     read_col_labels = True
                     labels_row = r
         if setup_col:
-            part_types, temp_dict, check_list, setup_list, sorted_parts, no_setup_parts = [], {}, [], [], [], []
-            for part in self.parts_list:
-                if self.parts[part]['type'] and (part_type := self.parts[part]['type']) not in part_types:
-                    part_types.append(part_type)
-            part_types.sort()  # Sort by type
-            for part_type in part_types:
-                temp_dict[part_type] = []
+            part_materials, temp_dict, check_list, setup_list, missed_parts = [], {}, [], [], []
+            for part in reversed(self.parts_list):
+                if not self.parts[part]['break']:
+                    no_break_parts.append(part)
+                    self.parts_list.pop(self.parts_list.index(part))
+                if part not in no_break_parts and self.parts[part]['material'] and \
+                        (material := self.parts[part]['material']) not in part_materials:
+                    part_materials.append(material)
+            part_materials.sort()  # Sort by material
+            for material in part_materials:
+                temp_dict[material] = []
                 for part in self.parts_list:
-                    if self.parts[part]['type'] and self.parts[part]['type'] == part_type:
-                        temp_dict[part_type].append(part)
+                    if self.parts[part]['material'] and self.parts[part]['material'] == material:
+                        temp_dict[material].append(part)
                         check_list.append(part)
             # Check for missed parts
             for part in self.parts_list:
-                if part not in check_list:
-                    no_setup_parts.append(part)
+                if part not in check_list and part not in no_break_parts:
+                    missed_parts.append(part)
             parts_list_bkp = [x for x in self.parts_list]
             self.parts_list = []
-            for part_type in part_types:
-                for part in temp_dict[part_type]:
+            for material in part_materials:
+                for part in temp_dict[material]:
                     if self.parts[part]['setup'] and (part_setup := self.parts[part]['setup']) not in setup_list:
                         setup_list.append(part_setup)
                 setup_list.sort()  # Sort by setup
                 for setup in setup_list:
-                    for part in temp_dict[part_type]:
+                    for part in temp_dict[material]:
                         if self.parts[part]['setup'] and self.parts[part]['setup'] == setup:
                             self.parts_list.append(part)
-            self.parts_list.extend(no_setup_parts)
+            self.parts_list.extend(missed_parts)
             for part in parts_list_bkp:
                 if part not in self.parts_list:
                     self.parts_list.append(part)
+
+        self.parts_list.extend(no_break_parts)
 
         self.make_break_list()
 
@@ -183,7 +190,7 @@ class ChecklistProgram:
         if os.path.isdir(temp_dir):
             shutil.rmtree(temp_dir)
         os.mkdir(temp_dir)
-        alt_bg_color = 'EEEEEE'
+        alt_bg_color = 'CDCDCD'
         for i, part in enumerate(self.parts_list, start=2):
             part_name = part + ' ['
             if self.parts[part]['break']:
@@ -204,6 +211,13 @@ class ChecklistProgram:
                 part_name = ''.join([part_name, ' {', self.parts[part]['setup'], '}'])
             sheet.cell(row=i, column=3).alignment = openpyxl.styles.Alignment(vertical='top')
             sheet.cell(row=i, column=3).value = part_name
+            if self.parts[part]['weld']:
+                font_color = 'E02222'
+            elif self.parts[part]['powder']:
+                font_color = '0000FF'
+            else:
+                font_color = '000000'
+            sheet.cell(row=i, column=3).font = Font(color=font_color, bold=True)
             sheet.cell(row=i, column=2).alignment = openpyxl.styles.Alignment(horizontal='right', vertical='center')
             sheet.cell(row=i, column=2).value = '☐'
             with open(temp_dir + part + '.png', "wb") as file:
@@ -241,7 +255,7 @@ class ChecklistProgram:
                     sheet[''.join([col, str(row)])].fill = PatternFill(start_color=alt_bg_color, end_color=alt_bg_color,
                                                                        fill_type='solid')
         #     sheet.cell(row=row, column=4).border = border
-        sheet.column_dimensions['A'].width = 42
+        sheet.column_dimensions['A'].width = 40
         sheet.column_dimensions['B'].width = 2
         # sheet.column_dimensions['D'].width = 20
         workbook.save('test.xlsx')
